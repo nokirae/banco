@@ -245,7 +245,7 @@ public final class VanillaBancoItem implements BancoItem {
             if (restrictedInteractions != null && !restrictedInteractions.isEmpty()) components.put("restricted", restrictedInteractions);
             if (restrictInteractions != null && restrictInteractions) components.put("restrict", true);
             
-            return Integer.toHexString(components.hashCode());
+            return Integer.toHexString(components.toString().hashCode());
         }
 
         @Override
