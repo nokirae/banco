@@ -163,8 +163,24 @@ public final class VanillaBancoItem implements BancoItem {
         return false;
     }
 
+    /**
+     * Gets the customization options for this item, or {@code null} if there are none.
+     * @return the customization options for this item, or {@code null} if there are none
+     */
     public BancoItemOptions customization() {
         return this.customization;
+    }
+
+    /**
+     * Checks if the item has a restricted interaction of the specified type.
+     * @param interaction the interaction type to check for restriction
+     * @return {@code true} if the item has a restricted interaction of the specified type, or {@code false} otherwise
+     */
+    public boolean isRestricted(@NotNull BancoItemOptions.RestrictedInteraction interaction) {
+        if (customization == null)
+            return false;
+
+        return customization.isRestricted(interaction);
     }
 
     private PlayerProfile getProfile(String textureUrl) {
@@ -186,7 +202,11 @@ public final class VanillaBancoItem implements BancoItem {
         return LegacyComponentSerializer.legacySection().serialize(component);
     } 
 
-    private String getIdentifier() {
+    /**
+     * Gets the unique identifier for this item, which is used for matching and persistence.
+     * @return the unique identifier for this item
+     */
+    public String getIdentifier() {
         if (this.identifier != null) {
             return this.identifier;
         }
@@ -195,10 +215,13 @@ public final class VanillaBancoItem implements BancoItem {
             return this.identifier = material.name() + ":" + value.toPlainString();
         }
 
-        return this.identifier = material.name() + ":" + value.toPlainString() + ":" + customization.getSignature();
+        return this.customization.identifier == null
+            ? this.identifier = material.name() + ":" + value.toPlainString() + ":" + customization.getSignature()
+            : this.customization.identifier;
     }
 
     public static record BancoItemOptions(
+        String identifier,
         String displayName, 
         List<String> lore, 
         Integer customModelData, 
@@ -206,10 +229,11 @@ public final class VanillaBancoItem implements BancoItem {
         Integer maxStackSize, 
         String headTextureUrl, 
         List<AttributeField> attributes, 
-        Boolean restrictInteractions
+        List<RestrictedInteraction> restrictedInteractions,
+        @Deprecated Boolean restrictInteractions
     ) implements Serializable {
 
-        public String getSignature() {
+        private String getSignature() {
             final Map<String, Object> components = new TreeMap<>();
             if (displayName != null) components.put("name", displayName);
             if (lore != null && !lore.isEmpty()) components.put("lore", lore);
@@ -218,16 +242,32 @@ public final class VanillaBancoItem implements BancoItem {
             if (maxStackSize != null) components.put("stack", maxStackSize);
             if (headTextureUrl != null) components.put("head", headTextureUrl);
             if (attributes != null && !attributes.isEmpty()) components.put("attr", attributes);
+            if (restrictedInteractions != null && !restrictedInteractions.isEmpty()) components.put("restricted", restrictedInteractions);
             if (restrictInteractions != null && restrictInteractions) components.put("restrict", true);
             
-            return Integer.toHexString(components.hashCode());
+            return Integer.toHexString(components.toString().hashCode());
         }
 
+        @Override
         public Boolean glowEffect() {
             if (glowEffect == null)
                 return false;
 
             return glowEffect;
+        }
+
+        private boolean isRestricted(@NotNull RestrictedInteraction interaction) {
+            if (restrictedInteractions != null && restrictedInteractions.stream().anyMatch(restricted -> restricted == interaction))
+                return true;
+
+            if (restrictedInteractions != null && restrictedInteractions.contains(RestrictedInteraction.ALL))
+                return true;
+
+            if (restrictInteractions != null && restrictInteractions) {
+                return true;
+            }
+
+            return false;
         }
 
         public record AttributeField(String key, double amount, AttributeModifier.Operation operation, String group) implements Serializable {
@@ -240,6 +280,26 @@ public final class VanillaBancoItem implements BancoItem {
                 return new AttributeModifier(new NamespacedKey("banco", UUID.nameUUIDFromBytes(key.getBytes()).toString()), amount, operation, EquipmentSlotGroup.getByName(group));
             }
 
+        }
+
+        public static enum RestrictedInteraction {
+            ALL("all"),
+            ANVIL("anvil"),
+            CRAFTING_TABLE("crafting_table"),
+            ENCHANTMENT_TABLE("enchantment_table"),
+            INTERACT("interact"),
+            INTERACT_WITH_ENTITY("interact_with_entity"),
+            CONSUME("consume");
+
+            private final String key;
+
+            RestrictedInteraction(String key) {
+                this.key = key;
+            }
+
+            public String getKey() {
+                return key;
+            }
         }
 
     }
